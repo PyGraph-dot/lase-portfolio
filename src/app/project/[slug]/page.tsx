@@ -32,6 +32,7 @@ const query = `
 const portableTextComponents = {
   types: {
     image: ({ value }: any) => {
+      if (!value || !value.asset) return null
       return (
         <div className="my-12 rounded-xl overflow-hidden border border-white/10 shadow-2xl bg-neutral-900">
            <img
@@ -58,6 +59,13 @@ export async function generateMetadata({ params }: { params: any }) {
 
 export default async function ProjectPage({ params }: { params: any }) {
   const { slug } = await params
+  
+  // Exclude reserved routes that shouldn't be treated as project slugs
+  const reservedSlugs = ['studio', 'admin', 'api']
+  if (reservedSlugs.includes(slug?.toLowerCase())) {
+    return notFound()
+  }
+  
   let project = null
   try {
     project = await client.fetch(query, { slug })
@@ -92,17 +100,17 @@ export default async function ProjectPage({ params }: { params: any }) {
              <span className="px-3 py-1 border border-[#00D4FF] text-[#00D4FF] text-xs font-mono uppercase tracking-widest rounded-full">
                {project.category || 'Case Study'}
              </span>
-             {project.scope?.map((item: string) => (
+             {project.scope && project.scope.length > 0 && project.scope.map((item: string) => (
                 <span key={item} className="text-neutral-500 text-xs uppercase tracking-widest border border-white/10 px-2 py-1 rounded-full">
                   {item}
                 </span>
              ))}
           </div>
           <h1 className="text-5xl md:text-8xl font-bold leading-none tracking-tighter mb-6">
-            {project.title}.
+            {project.title || 'Project'}.
           </h1>
           <p className="text-xl md:text-2xl text-neutral-400 max-w-2xl">
-            {project.tagline}
+            {project.tagline || ''}
           </p>
         </div>
 
@@ -117,7 +125,7 @@ export default async function ProjectPage({ params }: { params: any }) {
                  </div>
                  <Image
                   src={urlFor(project.mainImage).width(1600).url()}
-                  alt={project.title}
+                  alt={project.title || 'Project image'}
                   width={project.mainImage.dims.width}
                   height={project.mainImage.dims.height}
                   className="relative h-full w-auto object-contain z-10 py-4"
@@ -129,7 +137,7 @@ export default async function ProjectPage({ params }: { params: any }) {
               <div className="relative w-full aspect-video md:aspect-[21/9] bg-neutral-900 rounded-2xl overflow-hidden border border-white/10 shadow-2xl group">
                 <Image
                   src={urlFor(project.mainImage).width(1920).url()}
-                  alt={project.title}
+                  alt={project.title || 'Project image'}
                   fill
                   className="object-cover object-top transition-transform duration-[3s] ease-in-out group-hover:scale-105"
                   priority
@@ -158,7 +166,9 @@ export default async function ProjectPage({ params }: { params: any }) {
         </div>
 
         {/* 6. NEW: INTERACTIVE GALLERY COMPONENT */}
-        <Gallery images={project.gallery} />
+        {project.gallery && project.gallery.length > 0 && (
+          <Gallery images={project.gallery} />
+        )}
 
       </div>
     </main>

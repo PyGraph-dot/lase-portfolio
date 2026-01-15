@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { Send, Phone, User, Monitor } from 'lucide-react'
+import { Send, Phone, User, Monitor, Menu, X } from 'lucide-react'
 
 type Message = {
   id: string
@@ -22,10 +22,12 @@ export default function AdminDashboard() {
   const [presenceMap, setPresenceMap] = useState<Record<string, 'online' | 'offline'>>({})
   const [unreadMap, setUnreadMap] = useState<Record<string, number>>({})
   const [pinInput, setPinInput] = useState('') // New state for input field
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false) // Mobile menu state
 
   // 3. Helper Functions
   async function loadMessages(id: string) {
     setActiveSession(id)
+    setIsMobileMenuOpen(false) // Close mobile menu when session is selected
     const { data } = await supabase
       .from('messages')
       .select('*')
@@ -290,17 +292,23 @@ export default function AdminDashboard() {
   // 4. THE RENDER LOGIC (This is where we swap screens)
   if (!isAuth) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center font-sans">
-        <div className="text-center space-y-4">
-          <h1 className="text-white font-bold text-2xl tracking-tighter">LASE. <span className="text-neutral-500">ADMIN</span></h1>
-          <form onSubmit={handleLogin}>
+      <div className="h-screen bg-black flex items-center justify-center font-sans px-4">
+        <div className="text-center space-y-4 w-full max-w-sm">
+          <h1 className="text-white font-bold text-2xl md:text-3xl tracking-tighter">LASE. <span className="text-neutral-500">ADMIN</span></h1>
+          <form onSubmit={handleLogin} className="space-y-4">
             <input 
               type="password" 
               placeholder="Enter PIN"
-              className="bg-neutral-900 text-white p-3 rounded-lg border border-white/20 focus:border-white focus:outline-none text-center w-64 block mx-auto"
+              className="bg-neutral-900 text-white p-3 md:p-4 rounded-lg border border-white/20 focus:border-white focus:outline-none text-center w-full text-lg"
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
             />
+            <button 
+              type="submit"
+              className="w-full bg-white text-black py-3 rounded-lg font-bold hover:bg-neutral-200 transition"
+            >
+              Login
+            </button>
           </form>
         </div>
       </div>
@@ -309,9 +317,9 @@ export default function AdminDashboard() {
 
   // 5. THE DASHBOARD (Only shown if isAuth is true)
   return (
-    <div className="h-screen bg-black text-white flex font-sans">
+    <div className="h-screen bg-black text-white flex font-sans overflow-hidden">
       
-      {/* Sidebar */}
+      {/* Desktop Sidebar */}
       <div className="w-64 border-r border-white/10 p-4 overflow-y-auto hidden md:block">
         <h2 className="font-bold mb-6 text-xl tracking-tighter">LASE. <span className="text-neutral-500 text-sm">CMD</span></h2>
         <div className="space-y-2">
@@ -348,53 +356,133 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {/* Mobile Sidebar Overlay */}
+      {isMobileMenuOpen && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          <div className="fixed left-0 top-0 h-full w-64 bg-black border-r border-white/10 p-4 overflow-y-auto z-50 md:hidden">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-bold text-xl tracking-tighter">LASE. <span className="text-neutral-500 text-sm">CMD</span></h2>
+              <button 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-white hover:text-neutral-400"
+                aria-label="Close menu"
+                title="Close menu"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {sessions.map(id => (
+                <button
+                  key={id}
+                  onClick={() => {
+                    loadMessages(id)
+                    setUnreadMap((s) => ({ ...s, [id]: 0 }))
+                  }}
+                  className={`w-full text-left p-3 rounded-lg flex items-center gap-3 text-sm transition ${
+                    activeSession === id ? 'bg-white text-black' : 'hover:bg-neutral-900 text-neutral-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="flex items-center gap-3">
+                      <User size={14} />
+                      <span className="truncate">{id.substring(0, 8)}...</span>
+                    </div>
+                    <div className="ml-auto flex items-center gap-2">
+                      {presenceMap[id] === 'online' ? (
+                        <span className="w-2 h-2 rounded-full bg-green-400" title="Online" />
+                      ) : (
+                        <span className="w-2 h-2 rounded-full bg-neutral-700" title="Offline" />
+                      )}
+                      {unreadMap[id] > 0 && (
+                        <span className="text-xs bg-rose-500 text-white px-2 py-0.5 rounded-full">{unreadMap[id]}</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {activeSession ? (
           <>
-            <div className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-white/5">
+            {/* Mobile Menu Button */}
+            <div className="md:hidden border-b border-white/10 bg-white/5 px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="text-white hover:text-neutral-400 p-2 flex items-center"
+                aria-label="Open sessions menu"
+                title="Open sessions menu"
+              >
+                <Menu size={20} />
+                {sessions.length > 0 && (
+                  <span className="ml-2 text-xs bg-rose-500 text-white px-2 py-0.5 rounded-full">
+                    {sessions.length}
+                  </span>
+                )}
+              </button>
               <div className="flex items-center gap-2">
+                <Monitor size={16} className="text-green-500" />
+                <span className="font-mono text-xs text-neutral-300 truncate">{activeSession.substring(0,8)}</span>
+              </div>
+            </div>
+
+            {/* Header with Actions */}
+            <div className="h-auto md:h-16 border-b border-white/10 flex flex-col md:flex-row md:items-center md:justify-between px-4 md:px-6 bg-white/5 gap-3 md:gap-0">
+              <div className="hidden md:flex items-center gap-2">
                 <Monitor size={16} className="text-green-500" />
                 <span className="font-mono text-sm text-neutral-300">Session: {activeSession.substring(0,8)}</span>
               </div>
-              <div className="flex items-center gap-2">
+              
+              {/* Mobile: Scrollable button row */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
                 <button
                   onClick={copySessionId}
-                  className="px-3 py-1 bg-neutral-800 text-neutral-300 rounded-md text-sm hover:bg-neutral-700"
+                  className="px-3 py-1.5 md:py-1 bg-neutral-800 text-neutral-300 rounded-md text-xs md:text-sm hover:bg-neutral-700 whitespace-nowrap"
                 >
                   Copy ID
                 </button>
                 <button
                   onClick={exportMessages}
-                  className="px-3 py-1 bg-neutral-800 text-neutral-300 rounded-md text-sm hover:bg-neutral-700"
+                  className="px-3 py-1.5 md:py-1 bg-neutral-800 text-neutral-300 rounded-md text-xs md:text-sm hover:bg-neutral-700 whitespace-nowrap"
                 >
                   Export
                 </button>
                 <button
                   onClick={clearMessages}
-                  className="px-3 py-1 bg-neutral-800 text-amber-400 rounded-md text-sm hover:bg-neutral-700"
+                  className="px-3 py-1.5 md:py-1 bg-neutral-800 text-amber-400 rounded-md text-xs md:text-sm hover:bg-neutral-700 whitespace-nowrap"
                 >
                   Clear
                 </button>
                 <button
                   onClick={deleteSession}
-                  className="px-3 py-1 bg-red-600 text-white rounded-md text-sm hover:brightness-90"
+                  className="px-3 py-1.5 md:py-1 bg-red-600 text-white rounded-md text-xs md:text-sm hover:brightness-90 whitespace-nowrap"
                 >
                   Delete
                 </button>
                 <button 
                   onClick={triggerWhatsApp}
-                  className="bg-[#25D366] text-black px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:brightness-110"
+                  className="bg-[#25D366] text-black px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-bold flex items-center gap-1 md:gap-2 hover:brightness-110 whitespace-nowrap"
                 >
-                  <Phone size={16} fill="black" /> Close to WhatsApp
+                  <Phone size={14} className="md:w-4 md:h-4" fill="black" /> 
+                  <span className="hidden sm:inline">Close to WhatsApp</span>
+                  <span className="sm:hidden">WhatsApp</span>
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#0a0a0a]">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 bg-[#0a0a0a]">
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.is_user_message ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[60%] p-3 rounded-xl text-sm ${
+                  <div className={`max-w-[85%] md:max-w-[60%] p-3 rounded-xl text-sm break-words ${
                     msg.is_user_message 
                       ? 'bg-neutral-800 text-neutral-300 rounded-tl-none' 
                       : 'bg-blue-600 text-white rounded-tr-none'
@@ -405,21 +493,33 @@ export default function AdminDashboard() {
               ))}
             </div>
 
-            <form onSubmit={sendReply} className="p-4 border-t border-white/10 bg-black flex gap-3">
+            <form onSubmit={sendReply} className="p-3 md:p-4 border-t border-white/10 bg-black flex gap-2 md:gap-3">
               <input 
-                className="flex-1 bg-neutral-900 border border-white/20 rounded-lg px-4 focus:outline-none focus:border-white text-white"
+                className="flex-1 bg-neutral-900 border border-white/20 rounded-lg px-3 md:px-4 py-2 md:py-2.5 focus:outline-none focus:border-white text-white text-sm md:text-base"
                 placeholder="Reply as Admin..."
                 value={input}
                 onChange={e => setInput(e.target.value)}
               />
-              <button type="submit" className="p-3 bg-white text-black rounded-lg hover:bg-neutral-200">
+              <button 
+                type="submit" 
+                className="p-2.5 md:p-3 bg-white text-black rounded-lg hover:bg-neutral-200 flex-shrink-0"
+                aria-label="Send message"
+              >
                 <Send size={18} />
               </button>
             </form>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-neutral-500">
-            <p>Select a session to initiate protocol.</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-neutral-500 px-4">
+            <p className="text-center">Select a session to initiate protocol.</p>
+            {/* Mobile: Show menu button when no session selected */}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="mt-4 md:hidden px-4 py-2 bg-white text-black rounded-lg font-medium"
+              aria-label="View sessions"
+            >
+              View Sessions
+            </button>
           </div>
         )}
       </div>

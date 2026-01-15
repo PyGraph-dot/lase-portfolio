@@ -39,19 +39,22 @@ export default function Gallery({ images }: { images: GalleryImage[] }) {
             if (!image?.asset) return null
             const width = image.dims?.width || 800
             const height = image.dims?.height || 1000
+            const imageUrl = urlFor(image).width(800).url()
+
+            if (!imageUrl) return null
 
             return (
               <motion.div
                 key={image._key || i}
-                layoutId={`image-${image._key}`}
+                layoutId={`image-${image._key || i}`}
                 onClick={() => setSelectedImage(image)}
                 className="relative w-full bg-neutral-900 rounded-lg overflow-hidden border border-white/5 cursor-zoom-in break-inside-avoid group"
                 whileHover={{ y: -5 }}
               >
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors z-10" />
                 <Image
-                  src={urlFor(image).width(800).url()} // Load smaller thumb for speed
-                  alt={`Gallery ${i}`}
+                  src={imageUrl}
+                  alt={`Gallery image ${i + 1}`}
                   width={width}
                   height={height}
                   className="w-full h-auto object-cover"
@@ -84,15 +87,18 @@ export default function Gallery({ images }: { images: GalleryImage[] }) {
             </button>
 
             <motion.div
-              layoutId={`image-${selectedImage._key}`} // Smooth morph animation
+              layoutId={`image-${selectedImage._key || 'selected'}`} // Smooth morph animation
               className="relative w-auto h-auto max-w-full max-h-full rounded-lg overflow-hidden shadow-2xl border border-white/10"
               onClick={(e) => e.stopPropagation()} // Prevent closing if clicking the image itself
             >
-              <img
-                src={urlFor(selectedImage).width(1600).url()} // Load High-Res here
-                alt="Full View"
-                className="max-h-[90vh] w-auto object-contain"
-              />
+              {selectedImage.asset && (
+                <img
+                  src={urlFor(selectedImage).width(1600).url()} // Load High-Res here
+                  alt="Full view gallery image"
+                  className="max-h-[90vh] w-auto object-contain"
+                  loading="eager"
+                />
+              )}
             </motion.div>
           </motion.div>
         )}

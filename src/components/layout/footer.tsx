@@ -8,7 +8,7 @@ export default function Footer() {
   const pathname = usePathname()
 
   // 3. THE BOUNCER CHECK
-  if (pathname.startsWith('/studio') || pathname.startsWith('/admin')) {
+  if (pathname?.startsWith('/studio') || pathname?.startsWith('/admin')) {
     return null
   }
 

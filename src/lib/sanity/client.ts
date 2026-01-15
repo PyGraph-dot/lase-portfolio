@@ -37,4 +37,19 @@ export const client = createClient({
   dataset,
   apiVersion,
   useCdn,
+  // Add perspective for better cache control
+  perspective: 'published',
+  // Add stega for draft content (if needed)
+  stega: {
+    enabled: false,
+  },
+})
+
+// Create a client that bypasses CDN for fresh data (useful for server-side)
+export const clientNoCdn = createClient({
+  projectId,
+  dataset,
+  apiVersion,
+  useCdn: false, // Always bypass CDN for fresh data
+  perspective: 'published',
 })

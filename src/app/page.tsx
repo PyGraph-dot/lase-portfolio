@@ -1,4 +1,4 @@
-import { client } from '@/lib/sanity/client'
+import { clientNoCdn } from '@/lib/sanity/client'
 import { urlFor } from '@/lib/sanity/image'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -19,7 +19,8 @@ export const revalidate = 60
 export default async function Home() {
   let project = null
   try {
-    project = await client.fetch(spotlightQuery)
+    // Use clientNoCdn to bypass CDN cache and get fresh data
+    project = await clientNoCdn.fetch(spotlightQuery)
   } catch (error) {
     console.error('Error fetching featured project:', error)
     // Continue without featured project if fetch fails
@@ -91,7 +92,7 @@ export default async function Home() {
               <span className="text-[#00D4FF] font-mono text-xs md:text-sm uppercase tracking-widest mb-2">
                 {project.category}
               </span>
-              <h3 className="text-3xl md:text-6xl font-bold tracking-tighter mb-2 md:mb-4">{project.title}</h3>
+              <h3 className="text-3xl md:text-6xl font-bold tracking-tighter mb-2 md:mb-4">{project.title || 'Project'}</h3>
               <p className="text-sm md:text-lg text-neutral-300 max-w-xl line-clamp-2 md:line-clamp-none">{project.tagline}</p>
               
               <div className="absolute top-4 right-4 md:top-8 md:right-8 bg-white text-black w-10 h-10 md:w-16 md:h-16 rounded-full flex items-center justify-center rotate-45 md:group-hover:rotate-0 transition duration-500">
@@ -103,7 +104,7 @@ export default async function Home() {
             {project.mainImage && (
               <Image
                 src={urlFor(project.mainImage).width(1600).url()}
-                alt={project.title}
+                alt={project.title || 'Project image'}
                 fill
                 className="object-cover transition duration-1000 group-hover:scale-105"
               />

@@ -4,7 +4,8 @@ import { createClient } from 'next-sanity'
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
 const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
 const apiVersion = '2024-01-10'
-const useCdn = false
+// Use CDN in production for better performance
+const useCdn = process.env.NODE_ENV === 'production'
 
 function assertProjectId(id?: string) {
   if (!id) {

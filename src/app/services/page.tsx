@@ -44,7 +44,11 @@ export default function ServicesPage() {
   useEffect(() => {
     const query = `*[_type == "service"] | order(title asc)`
     client.fetch(query).then((data) => {
-      setServices(data)
+      setServices(data || [])
+      setLoading(false)
+    }).catch((error) => {
+      console.error('Error fetching services:', error)
+      setServices([])
       setLoading(false)
     })
   }, [])

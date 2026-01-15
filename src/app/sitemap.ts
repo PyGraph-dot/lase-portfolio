@@ -9,8 +9,14 @@ interface ProjectSitemap {
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://lase.vercel.app' // CHANGE THIS to your real domain later
 
-  // 1. Get all projects dynamically
-  const projects = await client.fetch<ProjectSitemap[]>(`*[_type == "project"] { "slug": slug.current, _updatedAt }`)
+  // 1. Get all projects dynamically with error handling
+  let projects: ProjectSitemap[] = []
+  try {
+    projects = await client.fetch<ProjectSitemap[]>(`*[_type == "project"] { "slug": slug.current, _updatedAt }`) || []
+  } catch (error) {
+    console.error('Error fetching projects for sitemap:', error)
+    // Continue with empty projects array if fetch fails
+  }
 
   const projectUrls: MetadataRoute.Sitemap = projects.map((project) => ({
     url: `${baseUrl}/project/${project.slug}`,

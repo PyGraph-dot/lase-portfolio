@@ -25,8 +25,14 @@ interface Project {
 }
 
 export default async function Home() {
-  // 1. Fetch data directly on the server
-  const projects: Project[] = await client.fetch(projectsQuery)
+  // 1. Fetch data directly on the server with error handling
+  let projects: Project[] = []
+  try {
+    projects = await client.fetch<Project[]>(projectsQuery) || []
+  } catch (error) {
+    console.error('Error fetching projects:', error)
+    // Continue with empty projects array if fetch fails
+  }
 
   return (
     <main className="min-h-screen bg-[#050505] text-white selection:bg-white/20">

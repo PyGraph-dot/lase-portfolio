@@ -28,7 +28,11 @@ export default function WorkPage() {
       }
     `
     client.fetch(query).then((data) => {
-      setProjects(data)
+      setProjects(data || [])
+      setLoading(false)
+    }).catch((error) => {
+      console.error('Error fetching projects:', error)
+      setProjects([])
       setLoading(false)
     })
   }, [])

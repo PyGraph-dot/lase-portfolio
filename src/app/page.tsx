@@ -17,7 +17,13 @@ const spotlightQuery = `*[_type == "project"] | order(_createdAt desc)[0] {
 export const revalidate = 60
 
 export default async function Home() {
-  const project = await client.fetch(spotlightQuery)
+  let project = null
+  try {
+    project = await client.fetch(spotlightQuery)
+  } catch (error) {
+    console.error('Error fetching featured project:', error)
+    // Continue without featured project if fetch fails
+  }
 
   return (
     <main className="bg-[#050505] min-h-screen text-white selection:bg-[#00D4FF] selection:text-black overflow-x-hidden">

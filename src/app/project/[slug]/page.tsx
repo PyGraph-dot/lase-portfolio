@@ -58,7 +58,13 @@ export async function generateMetadata({ params }: { params: any }) {
 
 export default async function ProjectPage({ params }: { params: any }) {
   const { slug } = await params
-  const project = await client.fetch(query, { slug })
+  let project = null
+  try {
+    project = await client.fetch(query, { slug })
+  } catch (error) {
+    console.error('Error fetching project:', error)
+    return notFound()
+  }
 
   if (!project) return notFound()
 

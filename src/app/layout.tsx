@@ -4,6 +4,7 @@ import ChatWidget from "@/components/chat/ChatWidget";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import CustomCursor from "@/components/ui/CustomCursor";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 // 1. THE SEO CONFIGURATION
 export const metadata: Metadata = {
@@ -74,6 +75,7 @@ export default function RootLayout({
         {children}
         <Footer />
         <ChatWidget />
+        <SpeedInsights />
       </body>
     </html>
   );

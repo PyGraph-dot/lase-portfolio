@@ -5,6 +5,7 @@ export default defineType({
   title: 'Portfolio Projects',
   type: 'document',
   fields: [
+    // --- BASIC INFO ---
     defineField({
       name: 'title',
       title: 'Project Title',
@@ -43,28 +44,84 @@ export default defineType({
       title: 'One-Line Pitch',
       type: 'string',
     }),
-    // THE UPGRADE: Allowing Images INSIDE the text
+    defineField({
+        name: 'primaryColor',
+        title: 'Brand Hex Color',
+        type: 'string',
+    }),
+    defineField({
+        name: 'mainImage',
+        title: 'Cover Image (Hero)',
+        type: 'image',
+        options: { hotspot: true },
+    }),
+
+    // --- CONVERSION LAYER 1: THE TRANSFORMATION (Before/After) ---
+    defineField({
+        name: 'problemStatement',
+        title: 'The "Before" State (Problem)',
+        description: 'Describe the chaos or lack of identity before you stepped in.',
+        type: 'text',
+        rows: 3,
+    }),
+    defineField({
+        name: 'beforeImage',
+        title: 'The "Before" Image (Old Logo/Screenshot)',
+        type: 'image',
+    }),
+
+    // --- CONVERSION LAYER 2: THE STRATEGIC PIVOT ---
+    defineField({
+        name: 'challengePivot',
+        title: 'The Strategic Pivot',
+        description: 'What went wrong? What was the hard decision? (The "Aha" moment)',
+        type: 'text',
+        rows: 4,
+    }),
+
+    // --- MAIN NARRATIVE ---
     defineField({
       name: 'description',
       title: 'Case Study Narrative',
       type: 'array',
       of: [
-        { type: 'block' }, // Text paragraphs
-        { type: 'image', options: { hotspot: true } } // Images in between text
+        { type: 'block' },
+        { type: 'image', options: { hotspot: true } }
       ] 
     }),
+
+    // --- CONVERSION LAYER 3: TECHNICAL EDGE (SEO/WEB) ---
     defineField({
-      name: 'primaryColor',
-      title: 'Brand Hex Color',
-      type: 'string',
+        name: 'techStack',
+        title: 'Technical/SEO Impact',
+        description: 'How did this help their SEO, Load Speed, or Scalability?',
+        type: 'text',
+        rows: 3,
     }),
+
+    // --- CONVERSION LAYER 4: SOCIAL MEDIA CAMPAIGN (NEW!) ---
     defineField({
-      name: 'mainImage',
-      title: 'Cover Image (Hero)',
-      type: 'image',
-      options: { hotspot: true },
+        name: 'socials',
+        title: 'Social Media Campaign',
+        description: 'Upload square/portrait flyers here for the Social Grid display.',
+        type: 'array',
+        of: [{ type: 'image' }],
+        options: { layout: 'grid' }
     }),
-    // We keep Gallery for "Extra" shots at the bottom
+
+    // --- CONVERSION LAYER 5: THE VERDICT ---
+    defineField({
+        name: 'testimonial',
+        title: 'Client Testimonial',
+        type: 'object',
+        fields: [
+            {name: 'quote', type: 'text', title: 'Quote'},
+            {name: 'author', type: 'string', title: 'Author Name'},
+            {name: 'role', type: 'string', title: 'Role/Title'},
+        ]
+    }),
+
+    // --- EXTRAS ---
     defineField({
       name: 'gallery',
       title: 'Project Gallery (Extras)',

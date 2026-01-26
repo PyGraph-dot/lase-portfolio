@@ -104,11 +104,11 @@ export default function AdminDashboard() {
     }
     setMessages(prev => [...prev, tempMsg])
 
-    // 2. Send to DB (Explicitly setting sender: 'admin')
+    // 2. Send to DB
     const { error } = await supabase.from('messages').insert({
       text: textToSend,
       session_id: activeSession,
-      sender: 'admin' 
+      sender: 'admin'
     })
 
     if (error) {
@@ -150,7 +150,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- BROADCAST PRESENCE (NEW) ---
+  // --- BROADCAST PRESENCE ---
   useEffect(() => {
     if (!isAuth) return
 
@@ -168,14 +168,12 @@ export default function AdminDashboard() {
       }
     }
 
-    // Subscribe and start pulsing
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        sendHeartbeat() // Immediate
+        sendHeartbeat() 
       }
     })
 
-    // Pulse every 5 seconds
     const interval = setInterval(sendHeartbeat, 5000)
 
     return () => {
@@ -185,7 +183,7 @@ export default function AdminDashboard() {
   }, [isAuth])
 
 
-  // --- SYNC ENGINE (Realtime + Polling) ---
+  // --- SYNC ENGINE ---
   useEffect(() => {
     if (!isAuth) return
 
@@ -238,7 +236,7 @@ export default function AdminDashboard() {
 
   if (!isAuth) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center px-4">
+      <div className="h-[100dvh] bg-black flex items-center justify-center px-4">
         <div className="w-full max-w-xs space-y-6">
             <div className="text-center">
                 <h1 className="text-3xl font-bold text-white tracking-tighter">LASE<span className="text-[#00D4FF]">.ADMIN</span></h1>
@@ -267,7 +265,8 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="flex h-screen bg-black text-white overflow-hidden">
+    // FIX: Use 100dvh to fix mobile scroll issues
+    <div className="flex h-[100dvh] bg-black text-white overflow-hidden">
       
       {/* SIDEBAR */}
       <div className={`
@@ -282,7 +281,7 @@ export default function AdminDashboard() {
             <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-neutral-400"><X /></button>
         </div>
         
-        <div className="overflow-y-auto h-[calc(100vh-64px)]">
+        <div className="overflow-y-auto h-[calc(100dvh-64px)]">
             {sessions.map(id => (
                 <button
                     key={id}
@@ -309,12 +308,13 @@ export default function AdminDashboard() {
       )}
 
       {/* CHAT AREA */}
-      <div className="flex-1 flex flex-col min-w-0 bg-black relative">
+      {/* FIX: flex-col with min-h-0 ensures children scroll correctly */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-black relative">
         
         {activeSession ? (
             <>
                 {/* Header */}
-                <div className="h-16 border-b border-white/10 flex items-center justify-between px-4 bg-black/50 backdrop-blur-md sticky top-0 z-10">
+                <div className="h-16 border-b border-white/10 flex items-center justify-between px-4 bg-black/50 backdrop-blur-md sticky top-0 z-10 shrink-0">
                     <div className="flex items-center gap-3">
                         <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden text-neutral-400">
                             <Menu size={20} />
@@ -336,7 +336,7 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* Messages */}
+                {/* Messages - Takes available space */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-6">
                     {messages.map((msg) => (
                         <div key={msg.id} className={`flex ${msg.sender === 'admin' ? 'justify-end' : 'justify-start'}`}>
@@ -353,12 +353,12 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                     ))}
-                    <div className="h-4" /> 
+                    <div className="h-2" /> 
                 </div>
 
-                {/* Input */}
-                <div className="p-4 border-t border-white/10 bg-black sticky bottom-0 z-20">
-                    <form onSubmit={sendReply} className="flex gap-2 relative">
+                {/* Input - Stays at bottom without sticky issues */}
+                <div className="p-4 border-t border-white/10 bg-black shrink-0">
+                    <form onSubmit={sendReply} className="flex gap-2">
                         <input 
                             value={input}
                             onChange={(e) => setInput(e.target.value)}

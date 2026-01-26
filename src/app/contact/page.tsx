@@ -28,7 +28,7 @@ function ContactContent() {
     name: '',
     email: '',
     message: '',
-    website: '' // Honeypot
+    website: '' // Honeypot field for bot protection
   })
 
   useEffect(() => {
@@ -49,49 +49,54 @@ function ContactContent() {
     setLoading(true)
     setValidationError(null)
 
-    // 1. Bot Protection
+    // 1. Bot Protection (Honeypot)
     if (formData.website) {
       setLoading(false)
       return 
     }
 
-    // 2. Validation
     try {
+      // 2. Client-Side Validation
       contactSchema.parse(formData)
       
-      // 3. SEND TO FORMSPREE (For Email Delivery)
-      const formspreePromise = fetch("https://formspree.io/f/xzdrejeq", {
+      // 3. Email Delivery (Formspree)
+      const formspreeResponse = await fetch("https://formspree.io/f/xzdrejeq", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json" 
+        },
         body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            message: formData.message
+          name: formData.name,
+          email: formData.email,
+          message: formData.message
         }),
       });
 
-      // 4. SEND TO SUPABASE (For Database Backup)
-      const supabasePromise = supabase.from('inquiries').insert([{
+      // 4. Database Backup (Supabase)
+      const { error: dbError } = await supabase.from('inquiries').insert([{
         name: formData.name,
         email: formData.email,
         message: formData.message
       }]);
 
-      // Execute both simultaneously for speed
-      const [emailRes, dbRes] = await Promise.all([formspreePromise, supabasePromise]);
+      // Logging for admin debugging
+      if (!formspreeResponse.ok) console.error("Formspree Failed");
+      if (dbError) console.error("Supabase Failed:", dbError.message);
 
-      if (emailRes.ok || !dbRes.error) {
+      // We treat it as success if the email lands, even if the DB backup fails
+      if (formspreeResponse.ok) {
         setSuccess(true)
         setFormData({ name: '', email: '', message: '', website: '' })
       } else {
-        throw new Error("Delivery failed")
+        setValidationError("The email server is currently busy. Please try Live Chat.")
       }
 
     } catch (err) {
       if (err instanceof z.ZodError) {
         setValidationError(err.errors[0].message)
       } else {
-        setValidationError("Could not send email. Please try the Live Chat.")
+        setValidationError("Could not connect to the server. Please try Live Chat.")
       }
     } finally {
       setLoading(false)
@@ -102,25 +107,25 @@ function ContactContent() {
     <main className="pt-24 md:pt-32 pb-20 px-6 md:px-20 max-w-7xl mx-auto min-h-screen">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-20">
         
-        {/* Left Info */}
+        {/* Contact Info Column */}
         <div>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tighter mb-8">
             Let&apos;s build <br/> something <span className="text-[#00D4FF]">Great.</span>
           </h1>
-          <p className="text-lg text-neutral-400 mb-12 leading-relaxed">
+          <p className="text-lg text-neutral-400 mb-12 max-w-md leading-relaxed">
             Have a project in mind? Whether you need a full brand overhaul or a 
             high-speed website, I am ready to collaborate.
           </p>
           
           <div className="space-y-6">
             <div className="flex items-center gap-4 text-lg md:text-xl text-neutral-300">
-              <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center shrink-0 border border-white/5">
+              <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center border border-white/5">
                 <Phone className="text-white" size={20} />
               </div>
               <span>+234 912 153 9519</span>
             </div>
             <div className="flex items-center gap-4 text-lg md:text-xl text-neutral-300">
-              <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center shrink-0 border border-white/5">
+              <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center border border-white/5">
                 <Mail className="text-white" size={20} />
               </div>
               <span>lase.branding@gmail.com</span>
@@ -128,19 +133,19 @@ function ContactContent() {
           </div>
         </div>
 
-        {/* Right Form */}
-        <div className="bg-neutral-900/30 p-6 md:p-8 rounded-3xl border border-white/10 relative overflow-hidden flex flex-col justify-center backdrop-blur-sm">
+        {/* Interactive Form Column */}
+        <div className="bg-neutral-900/30 p-6 md:p-8 rounded-3xl border border-white/10 relative overflow-hidden backdrop-blur-sm shadow-2xl">
           
           {success ? (
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-950/95 z-20 text-center p-8"
             >
               <CheckCircle size={64} className="text-[#00D4FF] mb-4" />
-              <h3 className="text-2xl font-bold text-white mb-2">Message Sent!</h3>
+              <h3 className="text-2xl font-bold text-white mb-2">Message Delivered!</h3>
               <p className="text-neutral-400">I&apos;ll get back to you within 24 hours.</p>
-              <button onClick={() => setSuccess(false)} className="mt-6 text-[#00D4FF] font-medium hover:underline">
+              <button onClick={() => setSuccess(false)} className="mt-6 text-[#00D4FF] font-bold hover:underline">
                 Send another message
               </button>
             </motion.div>
@@ -148,26 +153,27 @@ function ContactContent() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-bold mb-2 text-neutral-300">Name</label>
+              <label className="block text-xs font-bold uppercase tracking-widest mb-2 text-neutral-500">Name</label>
               <input 
                 type="text" 
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
-                className="w-full bg-black/40 border border-white/10 p-4 rounded-xl focus:border-[#00D4FF] focus:outline-none transition text-white placeholder-neutral-700" 
+                className="w-full bg-black/50 border border-white/10 p-4 rounded-xl focus:border-[#00D4FF] focus:outline-none transition text-white placeholder-neutral-700" 
                 placeholder="John Doe" 
               />
             </div>
             <div>
-              <label className="block text-sm font-bold mb-2 text-neutral-300">Email</label>
+              <label className="block text-xs font-bold uppercase tracking-widest mb-2 text-neutral-500">Email</label>
               <input 
                 type="email" 
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full bg-black/40 border border-white/10 p-4 rounded-xl focus:border-[#00D4FF] focus:outline-none transition text-white placeholder-neutral-700" 
+                className="w-full bg-black/50 border border-white/10 p-4 rounded-xl focus:border-[#00D4FF] focus:outline-none transition text-white placeholder-neutral-700" 
                 placeholder="john@example.com" 
               />
             </div>
             
+            {/* Hidden Bot Honeypot */}
             <input 
               type="text" 
               name="website" 
@@ -178,12 +184,12 @@ function ContactContent() {
             />
 
             <div>
-              <label className="block text-sm font-bold mb-2 text-neutral-300">Message</label>
+              <label className="block text-xs font-bold uppercase tracking-widest mb-2 text-neutral-500">Message</label>
               <textarea 
                 value={formData.message}
                 onChange={(e) => setFormData({...formData, message: e.target.value})}
-                className="w-full bg-black/40 border border-white/10 p-4 rounded-xl h-40 focus:border-[#00D4FF] focus:outline-none transition text-white placeholder-neutral-700 resize-none" 
-                placeholder="Tell me about your project..." 
+                className="w-full bg-black/50 border border-white/10 p-4 rounded-xl h-40 focus:border-[#00D4FF] focus:outline-none transition text-white placeholder-neutral-700 resize-none" 
+                placeholder="How can I help your brand?" 
               />
             </div>
 
@@ -192,8 +198,8 @@ function ContactContent() {
             )}
 
             <div className="pt-4 border-t border-white/5 space-y-4">
-              <div className="flex items-center justify-between text-xs md:text-sm text-neutral-500 font-mono">
-                <span>ESTIMATED REPLY: 24H</span>
+              <div className="flex items-center justify-between text-[10px] md:text-xs text-neutral-500 font-mono">
+                <span>REPLY TIME: &lt; 24H</span>
                 <button 
                   type="button" 
                   onClick={openChat}
@@ -212,7 +218,7 @@ function ContactContent() {
                 disabled={loading}
                 className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-[#00D4FF] transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {loading ? <Loader2 className="animate-spin" /> : 'SEND MESSAGE'}
+                {loading ? <Loader2 className="animate-spin" /> : 'SEND PROJECT DETAILS'}
               </button>
             </div>
           </form>

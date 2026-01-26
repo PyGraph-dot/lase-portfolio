@@ -36,6 +36,7 @@ export function middleware(request: NextRequest) {
     frame-ancestors 'none';
     block-all-mixed-content;
     upgrade-insecure-requests;
+    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sanity.io;
   `
   
   const contentSecurityPolicyHeaderValue = cspHeader

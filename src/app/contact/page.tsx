@@ -60,27 +60,32 @@ function ContactContent() {
       // 2. Client-Side Validation
       contactSchema.parse(formData)
       
-      // 3. Independent Formspree Execution
+      // 3. Send to Internal API (Bypasses Ad-Blockers)
       let emailSent = false;
       try {
-        const response = await fetch("https://formspree.io/f/xzdrejeq", {
+        const response = await fetch("/api/contact", {
           method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Accept": "application/json" 
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: formData.name,
             email: formData.email,
             message: formData.message
           }),
         });
-        if (response.ok) emailSent = true;
+        
+        if (response.ok) {
+          emailSent = true;
+        } else {
+          // If server returns error, log it but continue to DB backup
+          console.error("API Route failed:", await response.text());
+        }
       } catch (err) {
-        console.error("Formspree connection error:", err);
+        console.error("API connection error:", err);
       }
 
-      // 4. Independent Supabase Execution (Backup)
+      // 4. Supabase Execution (Redundant Backup)
+      // We keep this on the client so that if your own API crashes, 
+      // the client might still be able to hit Supabase directly.
       try {
         await supabase.from('inquiries').insert([{
           name: formData.name,
@@ -96,7 +101,7 @@ function ContactContent() {
         setSuccess(true)
         setFormData({ name: '', email: '', message: '', website: '' })
       } else {
-        setValidationError("The server rejected the request. Please use Live Chat for an instant reply.")
+        setValidationError("Connection blocked. Please use the Live Chat button below.")
       }
 
     } catch (err) {

@@ -1,261 +1,264 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { verifyAdminPin, deleteSessionMessages } from './actions' // IMPORT SERVER ACTIONS
-import { Send, Phone, User, Monitor, Menu, X } from 'lucide-react'
+import { verifyAdminPin, deleteSessionMessages } from './actions' 
+import { Send, Phone, User, Monitor, Menu, X, Trash2, Loader2, WifiOff } from 'lucide-react'
 
+// --- Types ---
 type Message = {
   id: string
   text: string
   session_id: string
-  is_user_message: boolean
-  created_at?: string
+  sender: 'user' | 'admin'
+  created_at: string
 }
 
 export default function AdminDashboard() {
+  // --- State ---
   const [sessions, setSessions] = useState<string[]>([])
   const [activeSession, setActiveSession] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isAuth, setIsAuth] = useState(false)
-  const [presenceMap, setPresenceMap] = useState<Record<string, 'online' | 'offline'>>({})
-  const [unreadMap, setUnreadMap] = useState<Record<string, number>>({})
   const [pinInput, setPinInput] = useState('')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [isConnected, setIsConnected] = useState(true)
+  
+  // Trackers
+  const [unreadMap, setUnreadMap] = useState<Record<string, number>>({})
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  // --- Helper Functions ---
+  // --- Auto-Scroll ---
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages, activeSession])
+
+  // --- Data Fetching ---
+  const fetchSessions = async () => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('session_id, created_at')
+      .order('created_at', { ascending: false })
+    
+    if (error) {
+        console.error("Connection Error")
+        setIsConnected(false)
+    } else {
+        setIsConnected(true)
+        if (data) {
+            const unique = Array.from(new Set(data.map((item: any) => item.session_id)))
+            setSessions(unique as string[])
+        }
+    }
+  }
 
   async function loadMessages(id: string) {
     setActiveSession(id)
-    setIsMobileMenuOpen(false)
+    setIsMobileMenuOpen(false) 
+    
     const { data } = await supabase
       .from('messages')
       .select('*')
       .eq('session_id', id)
       .order('created_at', { ascending: true })
+      
     if (data) setMessages(data as Message[])
     setUnreadMap((s) => ({ ...s, [id]: 0 }))
   }
 
+  // --- Auth ---
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    // SECURE LOGIN: Call Server Action
+    setLoading(true)
     const result = await verifyAdminPin(pinInput)
+    setLoading(false)
     
     if (result.success) {
       setIsAuth(true)
+      fetchSessions() 
     } else {
-      alert("Access Denied: " + (result.error || "Invalid PIN"))
+      alert("Access Denied")
       setPinInput('')
     }
   }
 
   // --- Actions ---
-
   const sendReply = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input || !activeSession) return
+    if (!input.trim() || !activeSession) return
     
-    await supabase.from('messages').insert({
-      text: input,
+    const textToSend = input
+    setInput('') 
+
+    // 1. Optimistic Update
+    const tempMsg: Message = {
+        id: crypto.randomUUID(),
+        text: textToSend,
+        session_id: activeSession,
+        sender: 'admin',
+        created_at: new Date().toISOString()
+    }
+    setMessages(prev => [...prev, tempMsg])
+
+    // 2. Send to DB (Explicitly setting sender: 'admin')
+    const { error } = await supabase.from('messages').insert({
+      text: textToSend,
       session_id: activeSession,
-      is_user_message: false 
+      sender: 'admin' 
     })
-    setInput('')
+
+    if (error) {
+        alert('Failed to send. Check connection.')
+        setIsConnected(false)
+    }
   }
 
   const triggerWhatsApp = async () => {
     if (!activeSession) return
-    const link = `https://wa.me/2349121539519?text=Hi Toluwalase, continuing session ID: ${activeSession.substring(0,5)}`
+    const link = `https://wa.me/2349121539519?text=Hi, continuing session ID: ${activeSession.substring(0,5)}`
+    
     const payload = JSON.stringify({
       type: 'action_card',
       action: 'open_whatsapp',
-      label: 'Continue this conversation on WhatsApp',
+      label: 'Continue on WhatsApp',
       url: link,
     })
 
     await supabase.from('messages').insert({
       text: payload,
       session_id: activeSession,
-      is_user_message: false
+      sender: 'admin'
     })
+    
+    // Force refresh
+    loadMessages(activeSession)
   }
 
-  const exportMessages = async () => {
+  const handleDeleteSession = async () => {
     if (!activeSession) return
-    try {
-      const { data } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('session_id', activeSession)
-        .order('created_at', { ascending: true })
-
-      const payload = JSON.stringify(data ?? [], null, 2)
-      const blob = new Blob([payload], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `session-${activeSession}.json`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error(err)
-      alert('Failed to export messages')
-    }
-  }
-
-  // UPDATED: Use Server Action for Secure Deletion
-  const clearMessages = async () => {
-    if (!activeSession) return
-    const ok = confirm('Clear all messages for this session? This cannot be undone.')
-    if (!ok) return
+    if (!confirm('Delete conversation?')) return
     
     const result = await deleteSessionMessages(activeSession)
-
-    if (result.success) {
-        setMessages([])
-        alert('Messages cleared successfully')
-    } else {
-        alert('Failed to clear: ' + result.error)
-    }
-  }
-
-  // UPDATED: Use Server Action for Secure Deletion
-  const deleteSession = async () => {
-    if (!activeSession) return
-    const ok = confirm('Delete this session entirely? This will remove all messages.')
-    if (!ok) return
-    
-    const result = await deleteSessionMessages(activeSession)
-
     if (result.success) {
         setMessages([])
         setSessions(prev => prev.filter(id => id !== activeSession))
         setActiveSession(null)
-        alert('Session deleted successfully')
-    } else {
-        alert('Failed to delete: ' + result.error)
     }
   }
 
-  const copySessionId = async () => {
-    if (!activeSession) return
-    try {
-      await navigator.clipboard.writeText(activeSession)
-      alert('Session ID copied to clipboard')
-    } catch (err) {
-      console.error(err)
-      alert('Failed to copy session id')
-    }
-  }
-
-  // --- Effects ---
-
+  // --- BROADCAST PRESENCE (NEW) ---
   useEffect(() => {
     if (!isAuth) return
 
-    const fetchSessions = async () => {
-      const { data } = await supabase
-        .from('messages')
-        .select('session_id')
-        .order('created_at', { ascending: false })
-      
-      if (data) {
-        const unique = Array.from(new Set(data.map((item: any) => item.session_id)))
-        setSessions(unique as string[])
+    const channel = supabase.channel('global_presence')
+    
+    const sendHeartbeat = async () => {
+      try {
+        await channel.send({
+          type: 'broadcast',
+          event: 'admin_ping',
+          payload: { status: 'online' }
+        })
+      } catch (err) {
+        console.error("Heartbeat failed", err)
       }
     }
-    fetchSessions()
 
-    const channel = supabase.channel('admin_global')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        fetchSessions()
-        if (activeSession) loadMessages(activeSession)
+    // Subscribe and start pulsing
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        sendHeartbeat() // Immediate
+      }
+    })
 
-        try {
-          const row = payload.new as any
-          if (row.is_user_message) {
-            const sid = row.session_id
-            setUnreadMap((s) => ({ ...s, [sid]: (s[sid] ?? 0) + 1 }))
-            if (typeof window !== 'undefined' && 'Notification' in window) {
-              if (Notification.permission === 'granted') {
-                new Notification('New user message', { body: String(row.text).slice(0, 120) })
-              }
-            }
-          }
-        } catch (e) { }
-      })
-      .subscribe()
-      
-    return () => { supabase.removeChannel(channel) }
-  }, [activeSession, isAuth])
-
-  useEffect(() => {
-    if (!isAuth || typeof window === 'undefined' || !('Notification' in window)) return
-    if (Notification.permission === 'default') {
-      try { Notification.requestPermission().catch(() => {}) } catch (e) {}
-    }
-  }, [isAuth])
-
-  useEffect(() => {
-    if (!isAuth) return
-    const presenceChannel = supabase.channel('presence_broadcast')
-      .on('broadcast', { event: 'presence' }, (payload) => {
-        try {
-          const p = payload.payload as any
-          if (!p || !p.session_id) return
-          setPresenceMap((s) => ({ ...s, [p.session_id]: p.status }))
-        } catch (e) {}
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(presenceChannel) }
-  }, [isAuth])
-
-  useEffect(() => {
-    if (!isAuth) return
-    const adminPresence = supabase.channel('presence_broadcast').subscribe()
-
-    const announce = (status: 'online' | 'offline') => {
-      try {
-        adminPresence.send({ type: 'broadcast', event: 'presence', payload: { admin: true, status } })
-      } catch (e) {}
-    }
-
-    announce('online')
-    const t = setInterval(() => announce('online'), 15000)
+    // Pulse every 5 seconds
+    const interval = setInterval(sendHeartbeat, 5000)
 
     return () => {
-      clearInterval(t)
-      announce('offline')
-      supabase.removeChannel(adminPresence)
+      clearInterval(interval)
+      supabase.removeChannel(channel)
     }
   }, [isAuth])
+
+
+  // --- SYNC ENGINE (Realtime + Polling) ---
+  useEffect(() => {
+    if (!isAuth) return
+
+    // 1. REALTIME
+    const channel = supabase.channel('admin_global')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const newMsg = payload.new as Message
+        
+        if (activeSession === newMsg.session_id) {
+            setMessages(prev => {
+                if (prev.some(m => m.text === newMsg.text && m.sender === newMsg.sender)) return prev
+                return [...prev, newMsg]
+            })
+        } else {
+            if (newMsg.sender === 'user') {
+                setUnreadMap(prev => ({ ...prev, [newMsg.session_id]: (prev[newMsg.session_id] || 0) + 1 }))
+                fetchSessions() 
+            }
+        }
+      })
+      .subscribe()
+
+    // 2. POLLING BACKUP
+    const interval = setInterval(() => {
+        fetchSessions()
+        if (activeSession) {
+            supabase.from('messages')
+                .select('*')
+                .eq('session_id', activeSession)
+                .order('created_at', { ascending: true })
+                .then(({ data }) => {
+                   if (data) {
+                       setMessages(prev => {
+                           if (data.length !== prev.length) return data as Message[]
+                           return prev
+                       })
+                   }
+                })
+        }
+    }, 4000)
+      
+    return () => { 
+        supabase.removeChannel(channel) 
+        clearInterval(interval)
+    }
+  }, [activeSession, isAuth])
 
 
   // --- Render ---
 
   if (!isAuth) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center font-sans px-4">
-        <div className="text-center space-y-4 w-full max-w-sm">
-          <h1 className="text-white font-bold text-2xl md:text-3xl tracking-tighter">LASE. <span className="text-neutral-500">ADMIN</span></h1>
+      <div className="h-screen bg-black flex items-center justify-center px-4">
+        <div className="w-full max-w-xs space-y-6">
+            <div className="text-center">
+                <h1 className="text-3xl font-bold text-white tracking-tighter">LASE<span className="text-[#00D4FF]">.ADMIN</span></h1>
+                <p className="text-neutral-500 text-sm mt-2">Secure Gateway</p>
+            </div>
           <form onSubmit={handleLogin} className="space-y-4">
             <input 
               type="password" 
-              placeholder="Enter PIN"
-              className="bg-neutral-900 text-white p-3 md:p-4 rounded-lg border border-white/20 focus:border-white focus:outline-none text-center w-full text-lg"
+              placeholder="PIN Access"
+              className="w-full bg-neutral-900 text-white border border-neutral-800 rounded-xl p-4 text-center text-lg tracking-[0.5em] focus:border-[#00D4FF] outline-none transition-colors"
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
+              maxLength={6}
             />
             <button 
               type="submit"
-              className="w-full bg-white text-black py-3 rounded-lg font-bold hover:bg-neutral-200 transition"
+              disabled={loading}
+              className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-[#00D4FF] transition-all disabled:opacity-50 flex items-center justify-center"
             >
-              Login
+              {loading ? <Loader2 className="animate-spin" /> : 'Authenticate'}
             </button>
           </form>
         </div>
@@ -264,209 +267,122 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="h-screen bg-black text-white flex font-sans overflow-hidden">
+    <div className="flex h-screen bg-black text-white overflow-hidden">
       
-      {/* Desktop Sidebar */}
-      <div className="w-64 border-r border-white/10 p-4 overflow-y-auto hidden md:block">
-        <h2 className="font-bold mb-6 text-xl tracking-tighter">LASE. <span className="text-neutral-500 text-sm">CMD</span></h2>
-        <div className="space-y-2">
-          {sessions.map(id => (
-            <button
-              key={id}
-              onClick={() => {
-                loadMessages(id)
-                setUnreadMap((s) => ({ ...s, [id]: 0 }))
-              }}
-              className={`w-full text-left p-3 rounded-lg flex items-center gap-3 text-sm transition ${
-                activeSession === id ? 'bg-white text-black' : 'hover:bg-neutral-900 text-neutral-400'
-              }`}
-            >
-              <div className="flex items-center gap-2 w-full">
-                <div className="flex items-center gap-3">
-                  <User size={14} />
-                  <span className="truncate">{id.substring(0, 8)}...</span>
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                  {presenceMap[id] === 'online' ? (
-                    <span className="w-2 h-2 rounded-full bg-green-400" title="Online" />
-                  ) : (
-                    <span className="w-2 h-2 rounded-full bg-neutral-700" title="Offline" />
-                  )}
-                  {unreadMap[id] > 0 && (
-                    <span className="text-xs bg-rose-500 text-white px-2 py-0.5 rounded-full">{unreadMap[id]}</span>
-                  )}
-                </div>
-              </div>
-            </button>
-          ))}
+      {/* SIDEBAR */}
+      <div className={`
+        fixed inset-y-0 left-0 z-50 w-72 bg-[#0A0A0A] border-r border-white/10 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="p-4 h-16 border-b border-white/10 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+                <h2 className="font-bold tracking-tight">INBOX <span className="text-neutral-600 ml-1">{sessions.length}</span></h2>
+                {!isConnected && <WifiOff size={14} className="text-red-500 animate-pulse"/>}
+            </div>
+            <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-neutral-400"><X /></button>
+        </div>
+        
+        <div className="overflow-y-auto h-[calc(100vh-64px)]">
+            {sessions.map(id => (
+                <button
+                    key={id}
+                    onClick={() => loadMessages(id)}
+                    className={`w-full p-4 border-b border-white/5 flex items-start gap-3 transition-colors ${activeSession === id ? 'bg-white/5' : 'hover:bg-white/[0.02]'}`}
+                >
+                    <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center shrink-0">
+                        <User size={14} className="text-neutral-400"/>
+                    </div>
+                    <div className="flex-1 text-left overflow-hidden">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="font-mono text-xs text-[#00D4FF] truncate">{id.slice(0,6)}...</span>
+                            {unreadMap[id] > 0 && <span className="w-2 h-2 bg-[#00D4FF] rounded-full" />}
+                        </div>
+                        <div className="text-xs text-neutral-500 truncate">Click to load history</div>
+                    </div>
+                </button>
+            ))}
         </div>
       </div>
 
-      {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
-        <>
-          <div 
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
-            onClick={() => setIsMobileMenuOpen(false)}
-          />
-          <div className="fixed left-0 top-0 h-full w-64 bg-black border-r border-white/10 p-4 overflow-y-auto z-50 md:hidden">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-bold text-xl tracking-tighter">LASE. <span className="text-neutral-500 text-sm">CMD</span></h2>
-              <button 
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="text-white hover:text-neutral-400"
-                aria-label="Close menu"
-                title="Close menu"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="space-y-2">
-              {sessions.map(id => (
-                <button
-                  key={id}
-                  onClick={() => {
-                    loadMessages(id)
-                    setUnreadMap((s) => ({ ...s, [id]: 0 }))
-                  }}
-                  className={`w-full text-left p-3 rounded-lg flex items-center gap-3 text-sm transition ${
-                    activeSession === id ? 'bg-white text-black' : 'hover:bg-neutral-900 text-neutral-400'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 w-full">
-                    <div className="flex items-center gap-3">
-                      <User size={14} />
-                      <span className="truncate">{id.substring(0, 8)}...</span>
-                    </div>
-                    <div className="ml-auto flex items-center gap-2">
-                      {presenceMap[id] === 'online' ? (
-                        <span className="w-2 h-2 rounded-full bg-green-400" title="Online" />
-                      ) : (
-                        <span className="w-2 h-2 rounded-full bg-neutral-700" title="Offline" />
-                      )}
-                      {unreadMap[id] > 0 && (
-                        <span className="text-xs bg-rose-500 text-white px-2 py-0.5 rounded-full">{unreadMap[id]}</span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+        <div className="fixed inset-0 bg-black/80 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* CHAT AREA */}
+      <div className="flex-1 flex flex-col min-w-0 bg-black relative">
+        
         {activeSession ? (
-          <>
-            {/* Mobile Menu Button */}
-            <div className="md:hidden border-b border-white/10 bg-white/5 px-4 py-3 flex items-center justify-between">
-              <button
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="text-white hover:text-neutral-400 p-2 flex items-center"
-                aria-label="Open sessions menu"
-                title="Open sessions menu"
-              >
-                <Menu size={20} />
-                {sessions.length > 0 && (
-                  <span className="ml-2 text-xs bg-rose-500 text-white px-2 py-0.5 rounded-full">
-                    {sessions.length}
-                  </span>
-                )}
-              </button>
-              <div className="flex items-center gap-2">
-                <Monitor size={16} className="text-green-500" />
-                <span className="font-mono text-xs text-neutral-300 truncate">{activeSession.substring(0,8)}</span>
-              </div>
-            </div>
-
-            {/* Header with Actions */}
-            <div className="h-auto md:h-16 border-b border-white/10 flex flex-col md:flex-row md:items-center md:justify-between px-4 md:px-6 bg-white/5 gap-3 md:gap-0">
-              <div className="hidden md:flex items-center gap-2">
-                <Monitor size={16} className="text-green-500" />
-                <span className="font-mono text-sm text-neutral-300">Session: {activeSession.substring(0,8)}</span>
-              </div>
-              
-              {/* Mobile: Scrollable button row */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-                <button
-                  onClick={copySessionId}
-                  className="px-3 py-1.5 md:py-1 bg-neutral-800 text-neutral-300 rounded-md text-xs md:text-sm hover:bg-neutral-700 whitespace-nowrap"
-                >
-                  Copy ID
-                </button>
-                <button
-                  onClick={exportMessages}
-                  className="px-3 py-1.5 md:py-1 bg-neutral-800 text-neutral-300 rounded-md text-xs md:text-sm hover:bg-neutral-700 whitespace-nowrap"
-                >
-                  Export
-                </button>
-                <button
-                  onClick={clearMessages}
-                  className="px-3 py-1.5 md:py-1 bg-neutral-800 text-amber-400 rounded-md text-xs md:text-sm hover:bg-neutral-700 whitespace-nowrap"
-                >
-                  Clear
-                </button>
-                <button
-                  onClick={deleteSession}
-                  className="px-3 py-1.5 md:py-1 bg-red-600 text-white rounded-md text-xs md:text-sm hover:brightness-90 whitespace-nowrap"
-                >
-                  Delete
-                </button>
-                <button 
-                  onClick={triggerWhatsApp}
-                  className="bg-[#25D366] text-black px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-bold flex items-center gap-1 md:gap-2 hover:brightness-110 whitespace-nowrap"
-                >
-                  <Phone size={14} className="md:w-4 md:h-4" fill="black" /> 
-                  <span className="hidden sm:inline">Close to WhatsApp</span>
-                  <span className="sm:hidden">WhatsApp</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 bg-[#0a0a0a]">
-              {messages.map((msg) => (
-                <div key={msg.id} className={`flex ${msg.is_user_message ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[85%] md:max-w-[60%] p-3 rounded-xl text-sm break-words ${
-                    msg.is_user_message 
-                      ? 'bg-neutral-800 text-neutral-300 rounded-tl-none' 
-                      : 'bg-blue-600 text-white rounded-tr-none'
-                  }`}>
-                    {msg.text}
-                  </div>
+            <>
+                {/* Header */}
+                <div className="h-16 border-b border-white/10 flex items-center justify-between px-4 bg-black/50 backdrop-blur-md sticky top-0 z-10">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden text-neutral-400">
+                            <Menu size={20} />
+                        </button>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></span>
+                                <span className="font-mono text-sm">ID: {activeSession.slice(0,6)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={triggerWhatsApp} className="p-2 hover:bg-white/10 rounded-lg text-green-500" title="Push to WhatsApp">
+                            <Phone size={18} />
+                        </button>
+                        <button onClick={handleDeleteSession} className="p-2 hover:bg-white/10 rounded-lg text-red-500" title="Delete Session">
+                            <Trash2 size={18} />
+                        </button>
+                    </div>
                 </div>
-              ))}
-            </div>
 
-            <form onSubmit={sendReply} className="p-3 md:p-4 border-t border-white/10 bg-black flex gap-2 md:gap-3">
-              <input 
-                className="flex-1 bg-neutral-900 border border-white/20 rounded-lg px-3 md:px-4 py-2 md:py-2.5 focus:outline-none focus:border-white text-white text-sm md:text-base"
-                placeholder="Reply as Admin..."
-                value={input}
-                onChange={e => setInput(e.target.value)}
-              />
-              <button 
-                type="submit" 
-                className="p-2.5 md:p-3 bg-white text-black rounded-lg hover:bg-neutral-200 flex-shrink-0"
-                aria-label="Send message"
-              >
-                <Send size={18} />
-              </button>
-            </form>
-          </>
+                {/* Messages */}
+                <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-6">
+                    {messages.map((msg) => (
+                        <div key={msg.id} className={`flex ${msg.sender === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] sm:max-w-[60%] p-3 sm:p-4 rounded-2xl text-sm ${
+                                msg.sender === 'admin' 
+                                    ? 'bg-white text-black rounded-tr-none' 
+                                    : 'bg-neutral-900 border border-white/10 text-neutral-300 rounded-tl-none'
+                            }`}>
+                                {msg.text.includes('action_card') ? (
+                                    <span className="italic text-neutral-500 flex items-center gap-2">
+                                        <Phone size={14} /> WhatsApp Prompt Sent
+                                    </span>
+                                ) : msg.text}
+                            </div>
+                        </div>
+                    ))}
+                    <div className="h-4" /> 
+                </div>
+
+                {/* Input */}
+                <div className="p-4 border-t border-white/10 bg-black sticky bottom-0 z-20">
+                    <form onSubmit={sendReply} className="flex gap-2 relative">
+                        <input 
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder="Type a reply..."
+                            className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#00D4FF] outline-none transition-colors"
+                        />
+                        <button 
+                            type="submit"
+                            disabled={!input.trim()}
+                            className="bg-[#00D4FF] text-black px-4 rounded-xl font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        >
+                            <Send size={20} />
+                        </button>
+                    </form>
+                </div>
+            </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-neutral-500 px-4">
-            <p className="text-center">Select a session to initiate protocol.</p>
-            {/* Mobile: Show menu button when no session selected */}
-            <button
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="mt-4 md:hidden px-4 py-2 bg-white text-black rounded-lg font-medium"
-              aria-label="View sessions"
-            >
-              View Sessions
-            </button>
-          </div>
+            <div className="flex-1 flex flex-col items-center justify-center text-neutral-500">
+                <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden mb-4 p-4 bg-neutral-900 rounded-full text-white">
+                    <Menu size={24} />
+                </button>
+                <Monitor size={48} className="opacity-20 mb-4" />
+                <p>Waiting for incoming transmission...</p>
+            </div>
         )}
       </div>
     </div>

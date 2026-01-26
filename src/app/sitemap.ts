@@ -7,7 +7,7 @@ interface ProjectSitemap {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://lase.vercel.app' // CHANGE THIS to your real domain later
+  const baseUrl = 'https://lase-portfolio.vercel.app'
 
   // 1. Get all projects dynamically with error handling
   let projects: ProjectSitemap[] = []

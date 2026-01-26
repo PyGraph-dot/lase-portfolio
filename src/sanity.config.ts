@@ -1,5 +1,5 @@
 // sanity.config.ts
-import { defineConfig } from 'sanity'
+import { defineConfig, isDev } from 'sanity' // Import 'isDev'
 import { structureTool } from 'sanity/structure'
 import { visionTool } from '@sanity/vision'
 import project from './lib/sanity/schemas/project'
@@ -13,8 +13,13 @@ export default defineConfig({
   title: 'LASE Studio',
   projectId,
   dataset,
-  basePath: '/studio', // This is where you will edit content
-  plugins: [structureTool(), visionTool()],
+  basePath: '/studio',
+  
+  // LOGIC CHANGE: Only show Vision Tool if we are developing locally
+  plugins: isDev 
+    ? [structureTool(), visionTool()] 
+    : [structureTool()],
+
   schema: {
     types: [project, service],
   },

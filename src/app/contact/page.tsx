@@ -3,13 +3,14 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Mail, Phone, MapPin, Loader2, CheckCircle } from 'lucide-react'
+import { Mail, Phone, Loader2, CheckCircle, MessageCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { contactSchema } from '@/lib/schemas' // Make sure you created Step 1
+import { z } from 'zod'
 
-// Wrap in Suspense for Next.js build safety
 export default function ContactPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-white"/></div>}>
       <ContactContent />
     </Suspense>
   )
@@ -19,29 +20,69 @@ function ContactContent() {
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  
+  // Auto-fill logic
   const interest = searchParams.get('interest')
-  const initialMessage = interest
-    ? `Hi Lase,\n\nI am interested in starting a project involving:\n• ${interest.split(', ').join('\n• ')}\n\nHere are some details about my timeline and budget:`
-    : ''
-
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    message: initialMessage
+    message: '',
+    website: '' // Honeypot field
   })
+
+  // Effect to set initial message only once
+  useEffect(() => {
+    if (interest) {
+      setFormData(prev => ({
+        ...prev,
+        message: `Hi Lase,\n\nI am interested in starting a project involving:\n• ${interest.split(', ').join('\n• ')}\n\nHere are some details about my timeline and budget:`
+      }))
+    }
+  }, [interest])
+
+  // Open Chat Logic
+  const openChat = () => {
+    // Dispatch a custom event to open the chat widget
+    window.dispatchEvent(new Event('open-chat-widget'))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setValidationError(null)
 
-    const { error } = await supabase.from('inquiries').insert([formData])
+    // 1. Security Check: Honeypot
+    if (formData.website) {
+      setLoading(false)
+      return // Silently fail for bots
+    }
+
+    // 2. Security Check: Zod Validation
+    try {
+      contactSchema.parse(formData)
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        setValidationError(err.errors[0].message)
+        setLoading(false)
+        return
+      }
+    }
+
+    // 3. Database Insertion
+    const { error } = await supabase.from('inquiries').insert([{
+      name: formData.name,
+      email: formData.email,
+      message: formData.message
+    }])
 
     setLoading(false)
     if (error) {
       alert('Error sending message. Please try again.')
     } else {
       setSuccess(true)
-      setFormData({ name: '', email: '', message: '' })
+      setFormData({ name: '', email: '', message: '', website: '' })
     }
   }
 
@@ -60,13 +101,13 @@ function ContactContent() {
           </p>
           
           <div className="space-y-6">
-            <div className="flex items-center gap-4 text-lg md:text-xl">
+            <div className="flex items-center gap-4 text-lg md:text-xl text-neutral-300">
               <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center shrink-0">
                 <Phone className="text-white" size={20} />
               </div>
               <span className="break-all">+234 912 153 9519</span>
             </div>
-            <div className="flex items-center gap-4 text-lg md:text-xl">
+            <div className="flex items-center gap-4 text-lg md:text-xl text-neutral-300">
               <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center shrink-0">
                 <Mail className="text-white" size={20} />
               </div>
@@ -76,8 +117,9 @@ function ContactContent() {
         </div>
 
         {/* Right Form */}
-        <div className="bg-neutral-900/30 p-6 md:p-8 rounded-3xl border border-white/10 relative overflow-hidden">
+        <div className="bg-neutral-900/30 p-6 md:p-8 rounded-3xl border border-white/10 relative overflow-hidden flex flex-col justify-center">
           
+          {/* Success Overlay */}
           {success ? (
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
@@ -97,36 +139,76 @@ function ContactContent() {
             <div>
               <label className="block text-sm font-bold mb-2 text-white">Name</label>
               <input 
-                type="text" required value={formData.name}
+                type="text" 
+                value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
-                className="w-full bg-black border border-white/10 p-4 rounded-lg focus:border-[#00D4FF] focus:outline-none transition text-white" 
+                className="w-full bg-black border border-white/10 p-4 rounded-lg focus:border-[#00D4FF] focus:outline-none transition text-white placeholder-neutral-600" 
                 placeholder="John Doe" 
               />
             </div>
             <div>
               <label className="block text-sm font-bold mb-2 text-white">Email</label>
               <input 
-                type="email" required value={formData.email}
+                type="email" 
+                value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full bg-black border border-white/10 p-4 rounded-lg focus:border-[#00D4FF] focus:outline-none transition text-white" 
+                className="w-full bg-black border border-white/10 p-4 rounded-lg focus:border-[#00D4FF] focus:outline-none transition text-white placeholder-neutral-600" 
                 placeholder="john@example.com" 
               />
             </div>
+            
+            {/* Honeypot Field (Hidden) */}
+            <input 
+              type="text" 
+              name="website" 
+              value={formData.website}
+              onChange={(e) => setFormData({...formData, website: e.target.value})}
+              className="hidden" 
+              autoComplete="off"
+            />
+
             <div>
               <label className="block text-sm font-bold mb-2 text-white">Message</label>
               <textarea 
-                required value={formData.message}
+                value={formData.message}
                 onChange={(e) => setFormData({...formData, message: e.target.value})}
-                className="w-full bg-black border border-white/10 p-4 rounded-lg h-32 focus:border-[#00D4FF] focus:outline-none transition text-white" 
+                className="w-full bg-black border border-white/10 p-4 rounded-lg h-32 focus:border-[#00D4FF] focus:outline-none transition text-white placeholder-neutral-600 resize-none" 
                 placeholder="Tell me about your project..." 
               />
             </div>
-            <button 
-              type="submit" disabled={loading}
-              className="w-full bg-white text-black font-bold py-4 rounded-lg hover:bg-[#00D4FF] transition flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="animate-spin" /> : 'Send Message'}
-            </button>
+
+            {/* Validation Error Message */}
+            {validationError && (
+              <p className="text-red-500 text-sm font-medium">{validationError}</p>
+            )}
+
+            {/* THE CHAT STRATEGY SECTION */}
+            <div className="pt-4 border-t border-white/5 space-y-4">
+              
+              {/* The Nudge */}
+              <div className="flex items-center justify-between text-xs md:text-sm text-neutral-500">
+                <span>Typical email reply: 24 hours</span>
+                <button 
+                  type="button" 
+                  onClick={openChat}
+                  className="flex items-center gap-1 text-[#00D4FF] hover:underline transition group"
+                >
+                  <span className="relative flex h-2 w-2 mr-1">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00D4FF] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00D4FF]"></span>
+                  </span>
+                  Live Chat is faster →
+                </button>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full bg-white text-black font-bold py-4 rounded-lg hover:bg-[#00D4FF] transition flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="animate-spin" /> : 'Send Message'}
+              </button>
+            </div>
           </form>
         </div>
 

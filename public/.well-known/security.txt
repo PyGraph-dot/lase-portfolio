@@ -1,0 +1,11 @@
+# Security Contacts
+Contact: mailto:adedejitoluwalase@gmail.com
+
+# Policy
+Preferred-Languages: en, yo
+
+# Canonical URL
+Canonical: https://lase-portfolio.vercel.app/.well-known/security.txt
+
+# Expiration (Update this next year)
+Expires: 2027-01-26T00:00:00.000Z

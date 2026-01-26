@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+
+# Block bots from your Sanity Admin area
+Disallow: /studio
+Disallow: /studio/*
+
+# Block bots from Next.js internal build files
+Disallow: /_next/
+Disallow: /api/preview
+
+# Optional: Block specific AI scrapers (if you don't want your data training their models)
+User-agent: GPTBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+# Sitemap location (Change the domain if not using vercel.app)
+Sitemap: https://lase-portfolio.vercel.app/sitemap.xml

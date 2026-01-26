@@ -70,7 +70,7 @@ function ContactContent() {
               <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center shrink-0">
                 <Mail className="text-white" size={20} />
               </div>
-              <span className="break-all">info@bestchoicegraphics.com</span>
+              <span className="break-all">lase.branding@gmail.com</span>
             </div>
           </div>
         </div>

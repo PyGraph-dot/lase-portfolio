@@ -1,7 +1,4 @@
 import { clientNoCdn } from '@/lib/sanity/client'
-import { urlFor } from '@/lib/sanity/image'
-import Link from 'next/link'
-import Image from 'next/image'
 import { Project } from '@/types'
 import WorkClient from './WorkClient'
 
@@ -21,11 +18,11 @@ const query = `
 export const revalidate = 60
 
 export default async function WorkPage() {
-  let projects: Project[] = []
+  let projects: Project[]
   
   try {
     // Use clientNoCdn to bypass CDN cache and get fresh data
-    projects = await clientNoCdn.fetch<Project[]>(query) || []
+    projects = (await clientNoCdn.fetch<Project[]>(query)) ?? []
   } catch (error) {
     console.error('Error fetching projects:', error)
     projects = []

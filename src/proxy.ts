@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
 
   // --- PART 1: YOUR EXISTING REDIRECTS ---
   // If the user hits these specific paths, we move them and EXIT immediately.
@@ -40,35 +39,4 @@ export function middleware(request: NextRequest) {
   `
   
   const contentSecurityPolicyHeaderValue = cspHeader
-    .replace(/\s{2,}/g, ' ')
-    .trim()
- 
-  const response = NextResponse.next({
-    request: {
-      headers: new Headers(request.headers),
-    },
-  })
-
-  // Apply the headers
-  response.headers.set('Content-Security-Policy', contentSecurityPolicyHeaderValue)
-  response.headers.set('X-Frame-Options', 'DENY') // Stops people from putting your site in an iframe
-  response.headers.set('X-Content-Type-Options', 'nosniff') // Stops browser from guessing file types
-
-  return response
-}
-
-export const config = {
-  // CRITICAL CHANGE: We must expand the matcher to cover the WHOLE website
-  // otherwise the security headers won't protect your homepage.
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - studio (Let Sanity handle its own security)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico|studio).*)',
-  ],
-}
+¶»§q«^

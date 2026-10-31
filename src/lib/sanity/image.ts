@@ -1,7 +1,7 @@
-import imageUrlBuilder from '@sanity/image-url'
+import { createImageUrlBuilder } from '@sanity/image-url'
 import { client } from './client'
 
-const imageBuilder = imageUrlBuilder(client)
+const imageBuilder = createImageUrlBuilder(client)
 
 // More flexible type to handle different Sanity image structures
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

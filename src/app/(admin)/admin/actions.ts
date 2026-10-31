@@ -21,7 +21,8 @@ export async function verifyAdminPin(submittedPin: string) {
 
   if (submittedPin === CORRECT_PIN) {
     // Set a secure, HTTP-Only cookie so the server remembers you are admin
-    cookies().set('admin_session', 'true', {
+    const cookieStore = await cookies()
+    cookieStore.set('admin_session', 'true', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -38,24 +39,8 @@ export async function verifyAdminPin(submittedPin: string) {
 // 3. Delete Messages (Requires Admin Cookie)
 export async function deleteSessionMessages(sessionId: string) {
   // Security Check: Does the user have the admin cookie?
-  const sessionCookie = cookies().get('admin_session')
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('admin_session')
   
   if (!sessionCookie || sessionCookie.value !== 'true') {
-    return { success: false, error: 'Unauthorized: Admin session expired' }
-  }
-
-  try {
-    // Use the Admin Client to delete rows (Bypasses RLS)
-    const { error } = await supabaseAdmin
-      .from('messages')
-      .delete()
-      .eq('session_id', sessionId)
-    
-    if (error) throw error
-
-    return { success: true }
-  } catch (error: any) {
-    console.error('Delete error:', error)
-    return { success: false, error: error.message || 'Failed to delete' }
-  }
-}
+    return { success: false, err¶»§q«^
